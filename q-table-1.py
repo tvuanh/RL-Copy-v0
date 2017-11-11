@@ -59,14 +59,14 @@ class CopyQTable(object):
         if random.random() < epsilon:
             action = np.random.choice(self.actions_space)
         else:
-            Qstate = [self.Qtable[state, a] for a in self.actions_space]
+            Qstate = self.Qtable[state, :]
             maxQstate = np.max(Qstate)
             possible_actions = [a for a in self.actions_space if Qstate[a] >= maxQstate]
             action = np.random.choice(possible_actions)
         return decode_action(action)
 
     def train(self, state, action, reward, next_state, done):
-        maxNextQ = np.max([self.Qtable[next_state, a] for a in self.actions_space])
+        maxNextQ = np.max(self.Qtable[next_state, :])
         encoded_action = encode_action(action)
         currentQ = self.Qtable[state, encoded_action]
         update = reward + done * self.gamma * maxNextQ
