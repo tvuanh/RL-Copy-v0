@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+
+from __future__ import division, print_function, absolute_import
+
 import random
 from collections import deque
 
