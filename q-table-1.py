@@ -48,7 +48,7 @@ class CopyQTable(object):
 
     actions_space = range(20)
 
-    def __init__(self, gamma=0.99, alpha=0.7):
+    def __init__(self, gamma=0.99, alpha=0.3):
         self.gamma = gamma
         self.alpha = alpha
         self.Qtable = np.zeros(
@@ -70,7 +70,7 @@ class CopyQTable(object):
         encoded_action = encode_action(action)
         currentQ = self.Qtable[state, encoded_action]
         update = reward + done * self.gamma * maxNextQ
-        self.Qtable[state, encoded_action] = self.alpha * currentQ + (1. - self.alpha) * update
+        self.Qtable[state, encoded_action] += self.alpha * (update - currentQ)
 
 
 if __name__ == '__main__':
