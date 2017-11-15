@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
     Qtable = CopyQTable(gamma=0.8)
 
-    epsilon, epsilon_decay = 1.0, 0.99
+    epsilon = 1.0
     target = 30.
     performance = deque(maxlen=100)
     performance.append(0.)
@@ -103,6 +103,6 @@ if __name__ == '__main__':
             state = next_state
         performance.append(np.sum(rewards))
         if epsilon > 0.001 and np.mean(rewards) > 0 and episode >= 1000:
-            epsilon *= epsilon_decay * (1.- np.mean(rewards) / target)
+            epsilon *= 1.- np.mean(rewards) / target
         print("episode {} steps {} rewards {} total {} epsilon {}".format(episode, steps, rewards, np.sum(rewards), epsilon))
     print(Qtable.Qtable)
