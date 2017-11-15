@@ -69,8 +69,8 @@ class CopyQTable(object):
         maxNextQ = np.max(self.Qtable[next_state, :])
         encoded_action = encode_action(action)
         currentQ = self.Qtable[state, encoded_action]
-        update = reward + done * self.gamma * maxNextQ
-        self.Qtable[state, encoded_action] += self.alpha * (update - currentQ)
+        update = reward + done * self.gamma * maxNextQ - currentQ
+        self.Qtable[state, encoded_action] += self.alpha * update
 
 
 if __name__ == '__main__':
