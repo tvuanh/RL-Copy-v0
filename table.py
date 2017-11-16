@@ -16,12 +16,12 @@ class CopyQTable(object):
 
     actions_space = range(20)
 
-    def __init__(self, gamma=0.99, alpha=0.3):
+    def __init__(self, gamma=0.99):
         self.gamma = gamma
-        self.alpha = alpha
         self.Qtable = np.zeros(
             (6, len(self.actions_space))
             ) # 6 state-rows, 20 action-columns
+        self.counters = np.ones(self.Qtable.shape)
 
     def epsilon_greedy_action(self, state, epsilon):
         if random.random() < epsilon:
@@ -38,7 +38,8 @@ class CopyQTable(object):
         encoded_action = encode_action(action)
         currentQ = self.Qtable[state, encoded_action]
         update = reward + self.gamma * maxNextQ - currentQ
-        self.Qtable[state, encoded_action] += self.alpha * update
+        self.Qtable[state, encoded_action] += update / self.counters[state, encoded_action]
+        self.counters[state, encoded_action] += 1
 
 
 if __name__ == '__main__':
