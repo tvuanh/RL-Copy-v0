@@ -92,7 +92,7 @@ with tf.Session() as sess:
                     }
                 )
             targetQ = allQ
-            targetQ[0, encode_action(actions[0])] = reward + 0.5 * done * gamma * np.max(predNextQ)
+            targetQ[0, encode_action(actions[0])] = reward + gamma * np.max(predNextQ)
             # train the networkd using the target and predicted Q values
             sess.run(
                 updateModel, feed_dict={

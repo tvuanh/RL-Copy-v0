@@ -33,11 +33,11 @@ class CopyQTable(object):
             action = np.random.choice(possible_actions)
         return decode_action(action)
 
-    def train(self, state, action, reward, next_state, done):
+    def train(self, state, action, reward, next_state):
         maxNextQ = np.max(self.Qtable[next_state, :])
         encoded_action = encode_action(action)
         currentQ = self.Qtable[state, encoded_action]
-        update = reward + done * self.gamma * maxNextQ - currentQ
+        update = reward + self.gamma * maxNextQ - currentQ
         self.Qtable[state, encoded_action] += self.alpha * update
 
 
@@ -63,7 +63,7 @@ if __name__ == '__main__':
             action = Qtable.epsilon_greedy_action(state, epsilon)
             # Execute the action and get feedback
             next_state, reward, done, _ = env.step(action)
-            Qtable.train(state, action, reward + 0.5, next_state, done) # use shifted reward to update the Q table
+            Qtable.train(state, action, reward + 0.5, next_state) # use shifted reward to update the Q table
             rewards.append(reward)
             state = next_state
         performance.append(np.sum(rewards))
