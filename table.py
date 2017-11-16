@@ -18,28 +18,33 @@ class CopyQTable(object):
 
     def __init__(self, gamma=0.99):
         self.gamma = gamma
-        self.Qtable = np.zeros(
+        self.Qmean = np.zeros(
             (6, len(self.actions_space))
             ) # 6 state-rows, 20 action-columns
-        self.counters = np.ones(self.Qtable.shape)
+        self.counters = np.ones(self.Qmean.shape)
 
     def epsilon_greedy_action(self, state, epsilon):
         if random.random() < epsilon:
             action = np.random.choice(self.actions_space)
         else:
-            Qstate = self.Qtable[state, :]
+            Qstate = self.Qmean[state, :]
             maxQstate = np.max(Qstate)
             possible_actions = [a for a in self.actions_space if Qstate[a] >= maxQstate]
             action = np.random.choice(possible_actions)
         return decode_action(action)
 
     def train(self, state, action, reward, next_state):
-        maxNextQ = np.max(self.Qtable[next_state, :])
+        maxNextQ = np.max(self.Qmean[next_state, :])
         encoded_action = encode_action(action)
-        currentQ = self.Qtable[state, encoded_action]
-        update = reward + self.gamma * maxNextQ - currentQ
-        self.Qtable[state, encoded_action] += update / self.counters[state, encoded_action]
+        currentQ = self.Qmean[state, action]
+        update = reward + self.gamma * maxNextQ
+        self.update_mean(state, encoded_action, update)
         self.counters[state, encoded_action] += 1
+
+    def update_mean(self, state, action, update):
+        counts = self.counters[state, action]
+        Qm = self.Qmean[state, action]
+        self.Qmean[state, action] += (update - Qm) / counts
 
 
 if __name__ == '__main__':
@@ -71,4 +76,4 @@ if __name__ == '__main__':
         if epsilon > 0.001 and np.mean(rewards) > 0 and episode >= 1000:
             epsilon *= 1.- np.mean(rewards) / target
         print("episode {} steps {} rewards {} total {} epsilon {}".format(episode, steps, rewards, np.sum(rewards), epsilon))
-    print(Qtable.Qtable)
+    print(Qtable.Qmean)
