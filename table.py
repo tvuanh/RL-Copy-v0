@@ -16,90 +16,106 @@ class CopyQTable(object):
 
     actions_space = range(20)
 
-    def __init__(self, gamma=1.):
+    def __init__(self, gamma=1., minvisits=10, minvar=1.e-10):
+        # discount factor
         self.gamma = gamma
+        # min number of visits per state-action
+        self.minvisits = minvisits
+        # minimum variance per state-action, protection in case of deterministic rewards
+        self.minvar = minvar
+        # Q(state, action) sample mean value
         self.Qmean = np.zeros(
             (6, len(self.actions_space))
             ) # 6 state-rows, 20 action-columns
-        self.counters = np.ones(self.Qmean.shape)
-        self.Sr2 = np.zeros(self.Qmean.shape) # sum of squared rewards
+        # number of visits per state-action
+        self.visits = np.ones(self.Qmean.shape)
+        # sum of squared future rewards
+        self.Sr2 = np.zeros(self.Qmean.shape)
+        # Q(state, action) sample variance
         self.Qvar = np.ones(self.Qmean.shape) * np.inf
 
     def epsilon_greedy_action(self, state, epsilon):
         if random.random() < epsilon:
             action = np.random.choice(self.actions_space)
         else:
-            Qstate = self.Qmean[state, :]
-            maxQstate = np.max(Qstate)
-            possible_actions = [a for a in self.actions_space if Qstate[a] >= maxQstate]
-            action = np.random.choice(possible_actions)
+            means = self.Qmean[state, :]
+            action = self.action_from_values(means)
         return decode_action(action)
 
     def optimal_action(self, state):
-        counts = self.counters[state, :]
-        if np.min(counts) < 10:
+        visits = self.visits[state, :]
+        if np.min(visits) < self.minvisits:
             action = np.random.choice(self.actions_space)
         else:
             means, variances = self.Qmean[state, :], self.Qvar[state, :]
-            upper_bounds = means + 2. * np.sqrt(np.divide(variances, counts))
-            maxQstate = np.max(upper_bounds)
-            possible_actions = [a for a in self.actions_space if upper_bounds[a] >= maxQstate]
-            action = np.random.choice(possible_actions)
+            upper_bounds = means + 2. * np.sqrt(np.divide(variances, visits))
+            action = self.action_from_values(upper_bounds)
         return decode_action(action)
 
+    def action_from_values(self, values):
+        maxQstate = np.max(values)
+        possible_actions = [a for a in self.actions_space if values[a] >= maxQstate]
+        return np.random.choice(possible_actions)
+
     def train(self, state, action, reward, next_state):
-        maxNextQ = np.max(self.Qmean[next_state, :])
+        future_reward = reward + self.gamma * np.max(self.Qmean[next_state, :])
         encoded_action = encode_action(action)
-        update = reward + self.gamma * maxNextQ
-        self.update_mean(state, encoded_action, update)
-        self.update_sum_squared_rewards(state, encoded_action, update)
-        self.update_variance(state, encoded_action, update)
-        self.counters[state, encoded_action] += 1
+        # update mean, sum squared rewards and variance in exact order
+        self.update_mean(state, encoded_action, future_reward)
+        self.update_sum_squared_rewards(state, encoded_action, future_reward)
+        self.update_variance(state, encoded_action)
+        self.visits[state, encoded_action] += 1
 
-    def update_mean(self, state, action, update):
-        counts = self.counters[state, action]
+    def update_mean(self, state, action, future_reward):
+        visits = self.visits[state, action]
         Qm = self.Qmean[state, action]
-        self.Qmean[state, action] += (update - Qm) / counts
+        self.Qmean[state, action] += (future_reward - Qm) / visits
 
-    def update_sum_squared_rewards(self, state, action, update):
-        self.Sr2[state, action] += update * update
+    def update_sum_squared_rewards(self, state, action, future_reward):
+        self.Sr2[state, action] += future_reward * future_reward
 
-    def update_variance(self, state, action, update):
-        counts = self.counters[state, action]
-        if counts > 1:
+    def update_variance(self, state, action):
+        visits = self.visits[state, action]
+        if visits > 1:
             sr2 = self.Sr2[state, action]
             Qm = self.Qmean[state, action]
-            self.Qvar[state, action] = (sr2 - counts * Qm * Qm) / (counts - 1)
+            self.Qvar[state, action] = max(
+                (sr2 - visits * Qm * Qm) / (visits - 1),
+                self.minvar
+            )
 
 
-if __name__ == '__main__':
+def play(episodes=10000):
     env = gym.make('Copy-v0')
-#     env = gym.wrappers.Monitor(env, '/tmp/copy-v0', force=True)
 
     Qtable = CopyQTable(gamma=0.8)
 
-    epsilon = 1.0
-    target = 30.
     performance = deque(maxlen=100)
     performance.append(0.)
 
     episode = 0
-    while episode < 10000 and np.mean(performance) < 25.:
+    while episode < episodes and np.mean(performance) < 25.:
         episode += 1
         state = env.reset()
 
         steps, rewards, done = 0, [], False
         while not done:
             steps += 1
-            # action = Qtable.epsilon_greedy_action(state, epsilon)
             action = Qtable.optimal_action(state)
-            # Execute the action and get feedback
             next_state, reward, done, _ = env.step(action)
             Qtable.train(state, action, reward + 0.5, next_state) # use shifted reward to update the Q table
             rewards.append(reward)
             state = next_state
         performance.append(np.sum(rewards))
-        if epsilon > 0.001 and np.mean(rewards) > 0 and episode >= 1000:
-            epsilon *= 1.- np.mean(rewards) / target
-        print("episode {} steps {} rewards {} total {} epsilon {}".format(episode, steps, rewards, np.sum(rewards), epsilon))
-    print(Qtable.Qmean)
+        #print("episode {} steps {} rewards {} total {}".format(episode, steps, rewards, np.sum(rewards)))
+
+    return episode
+
+
+if __name__ == '__main__':
+
+    episodes = 3000
+    results = np.array([play(episodes) for _ in range(1000)])
+    success = results < episodes
+    print("Total number of successful plays is {}".format(np.sum(success)))
+    print("Average number of episodes before success per play {}".format(np.mean(results[success])))
