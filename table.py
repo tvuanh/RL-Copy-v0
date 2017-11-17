@@ -50,7 +50,6 @@ class CopyQTable(object):
     def train(self, state, action, reward, next_state):
         maxNextQ = np.max(self.Qmean[next_state, :])
         encoded_action = encode_action(action)
-        currentQ = self.Qmean[state, action]
         update = reward + self.gamma * maxNextQ
         self.update_mean(state, encoded_action, update)
         self.update_sum_squared_rewards(state, encoded_action, update)
