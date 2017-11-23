@@ -48,8 +48,9 @@ class CopyQTable(object):
             action = np.random.choice(self.actions_space)
         else:
             means, variances = self.Qmean[state, :], self.Qvar[state, :]
-            upper_bounds = means + 2. * np.sqrt(np.divide(variances, visits))
-            action = self.action_from_values(upper_bounds)
+            sigmas = np.sqrt(np.divide(variances, visits))
+            draws = means + sigmas * np.random.randn(len(self.actions_space))
+            action = self.action_from_values(draws)
         return decode_action(action)
 
     def action_from_values(self, values):
