@@ -7,21 +7,21 @@ import gym
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import Adam
-from keras.initializers import RandomNormal
 
 from utils import encode_action, decode_action
 
 
 class Controller(object):
 
-    def __init__(self, n_input, n_output, gamma=1., batch_size=25, model_instances=10):
+    def __init__(self, n_input, n_output, gamma=0.7, batch_size=20, model_instances=2):
         self.n_input = n_input
         self.n_output = n_output
         self.action_space = range(n_output)
         self.gamma = gamma
         self.batch_size = batch_size
         self.model_instances = model_instances
-        self.memory = deque(maxlen=100 * batch_size * model_instances)
+        self.memory = dict()
+        self.visits = np.zeros((n_input, n_output))
 
         # action neural network
         self.action_models = []
@@ -30,9 +30,7 @@ class Controller(object):
             model.add(
                 Dense(
                     self.n_output, input_dim=self.n_input, activation="linear",
-                    kernel_initializer=RandomNormal(
-                        mean=0.0, stddev=0.005, seed=None
-                        ),
+                    kernel_initializer="zeros",
                     use_bias=False
                     )
                 )
@@ -45,38 +43,42 @@ class Controller(object):
         return np.identity(self.n_input)[state : state + 1]
 
     def memorize(self, state, action, reward, next_state, done):
-        self.memory.append(
-            (
-                self.preprocess_state(state),
-                encode_action(action),
-                reward,
-                self.preprocess_state(next_state),
-                done
-                )
+        mem = self.memory.get(reward)
+        if mem is None:
+            mem = deque(maxlen=10 * self.batch_size * self.model_instances)
+        mem.append(
+        (
+            self.preprocess_state(state),
+            encode_action(action),
+            reward,
+            self.preprocess_state(next_state),
+            done
             )
+        )
+        self.memory[reward] = mem
+        self.visits[state, encode_action(action)] += 1
 
     def optimal_action(self, state):
-        if len(self.memory) < self.model_instances * self.batch_size:
+        visits = self.visits[state, :]
+        if np.min(visits) < self.batch_size:
             action = np.random.choice(self.action_space)
         else:
             s = self.preprocess_state(state)
             Qs = [model.predict(s)[0] for model in self.action_models]
             # estimate means and sigmas then draw random events to smoothen the sampling
-            means, sigmas = np.mean(Qs, axis=0), np.sqrt(np.var(Qs, axis=0, ddof=1))
-            draws = means + sigmas * np.random.randn(len(means))
+            means = np.mean(Qs, axis=0)
+            sigmas = np.sqrt(np.var(Qs, axis=0, ddof=1) / self.model_instances)
+            draws = means + sigmas * np.random.randn(self.n_output)
             action = np.argmax(draws)
         return decode_action(action)
 
     def replay(self):
         for model in self.action_models:
-            if len(self.memory) <= self.model_instances * self.batch_size:
-                continue
-            else:
-                minibatch = random.sample(self.memory, k=self.batch_size)
+            minibatch = self.prepare_minibatch()
             x_batch, y_batch = list(), list()
-            for state, action, reward, next_state, _ in minibatch:
+            for state, action, reward, next_state, done in minibatch:
                 y_target = model.predict(state)
-                y_target[0, action] = reward + self.gamma * np.max(
+                y_target[0, action] = reward + (1 - done) * self.gamma * np.max(
                     model.predict(next_state)
                     )
                 x_batch.append(state[0])
@@ -84,6 +86,17 @@ class Controller(object):
             model.fit(
                 np.array(x_batch), np.array(y_batch), batch_size=len(x_batch),
                 verbose=False)
+
+    def prepare_minibatch(self):
+        minibatch = []
+        for c in self.memory.keys():
+            mem = self.memory[c]
+            if len(mem) <= self.model_instances * self.batch_size:
+                size = max(1, len(mem) / self.model_instances)
+            else:
+                size = self.batch_size
+            minibatch += random.sample(self.memory[c], size)
+        return minibatch
 
 
 def play(episodes):
@@ -110,18 +123,18 @@ def play(episodes):
             steps += 1
         scores.append(np.sum(rewards))
 
-        print(
-            "episode {} steps {} rewards {} average score {}".format(
-                episode, steps, rewards, np.mean(scores)
-                )
-            )
+        # print(
+        #     "episode {} steps {} rewards {} average score {}".format(
+        #         episode, steps, rewards, np.mean(scores)
+        #         )
+        #     )
         controller.replay()
     return episode
 
 
 if __name__ == "__main__":
-    episodes = 10000
-    nplays = 1
+    episodes = 3000
+    nplays = 5
     results = np.array([play(episodes) for _ in range(nplays)])
     success = results < episodes
     print("Total number of successful plays is {}/{}".format(np.sum(success), nplays))
