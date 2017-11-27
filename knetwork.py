@@ -13,7 +13,7 @@ from utils import encode_action, decode_action
 
 class Controller(object):
 
-    def __init__(self, n_input, n_output, gamma=0.7, batch_size=20, model_instances=2):
+    def __init__(self, n_input, n_output, gamma=0.5, batch_size=20, model_instances=4):
         self.n_input = n_input
         self.n_output = n_output
         self.action_space = range(n_output)
@@ -99,7 +99,7 @@ class Controller(object):
         return minibatch
 
 
-def play(episodes):
+def play(episodes, verbose=False):
     env = gym.make("Copy-v0")
     controller = Controller(
         n_input=env.observation_space.n, n_output=20)
@@ -123,19 +123,21 @@ def play(episodes):
             steps += 1
         scores.append(np.sum(rewards))
 
-        # print(
-        #     "episode {} steps {} rewards {} average score {}".format(
-        #         episode, steps, rewards, np.mean(scores)
-        #         )
-        #     )
+        if verbose:
+            print(
+                "episode {} steps {} rewards {} average score {}".format(
+                    episode, steps, rewards, np.mean(scores)
+                    )
+                )
+
         controller.replay()
     return episode
 
 
 if __name__ == "__main__":
     episodes = 3000
-    nplays = 5
-    results = np.array([play(episodes) for _ in range(nplays)])
+    nplays = 1
+    results = np.array([play(episodes, verbose=True) for _ in range(nplays)])
     success = results < episodes
     print("Total number of successful plays is {}/{}".format(np.sum(success), nplays))
     print("Average number of episodes before success per play {}".format(np.mean(results[success])))
