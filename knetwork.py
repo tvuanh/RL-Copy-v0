@@ -43,9 +43,10 @@ class Controller(object):
         return np.identity(self.n_input)[state : state + 1]
 
     def memorize(self, state, action, reward, next_state, done):
-        mem = self.memory.get(reward)
-        if mem is None:
-            mem = deque(maxlen=10 * self.batch_size * self.model_instances)
+        mem = self.memory.get(
+            reward,
+            deque(maxlen=10 * self.batch_size * self.model_instances)
+        )
         mem.append(
         (
             self.preprocess_state(state),
